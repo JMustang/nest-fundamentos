@@ -5,13 +5,13 @@ export class SongsService {
   // local DB
   // local array
 
-  private readonly songs: Song[] = [];
+  private readonly songs = [];
 
-  create(song: Song): Song[] {
+  create(song) {
     this.songs.push(song);
     return this.songs;
   }
-  findAll(): Song[] {
+  findAll() {
     return this.songs;
   }
 }
