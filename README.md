@@ -353,3 +353,223 @@ Para testar a rota `GET /songs`, execute o aplicativo e envie uma solicitação 
 Quando você envia a solicitação `POST http://localhost:3000/songs` do seu cliente REST, isso criará uma nova música no array de músicas gerenciado pelo `SongsService`.
 
 Após criar a música, ao enviar a solicitação `GET http://localhost:3000/songs` novamente, você receberá o array atualizado de músicas como resposta. Isso demonstra a funcionalidade completa do endpoint de criação de músicas e como o sistema de serviço gerencia os dados para fornecer uma resposta atualizada ao solicitar todas as músicas.
+
+## Capítulo 3 Middlewares / Exception Filters e Pipes
+
+- Oque e um middlewares no nestjs?
+
+Execute uma função de middleware antes de executar o manipulador de rota, por exemplo, antes do método `findAll` em `SongsController`. Em comparação com estruturas como o Express, o middleware no Nest.js oferece uma abordagem mais organizada e modular, alinhando-se estreitamente com os princípios da programação orientada a objetos e funcional.
+
+O middleware terá acesso aos objetos `req` e `res`, assim como à próxima função, permitindo a personalização do objeto de solicitação. Embora semelhante ao Express, o Nest.js fornece uma arquitetura mais robusta e escalonável para a construção de aplicativos complexos. Isso facilita a criação de pipelines de middleware claros e modulares para a manipulação de solicitações antes de chegarem aos manipuladores de rota específicos.
+
+- Execute qualquer código dentro do middleware.
+
+No Nest.js, o middleware é semelhante ao middleware Express.js, mas é mais baseado em classes e modular, adaptando-se bem à forte arquitetura modular do Nest. Ao contrário do Express, onde o middleware às vezes pode se tornar incontrolável em aplicativos grandes, o Nest.js oferece uma maneira mais estruturada de lidar com o middleware.
+
+Modificando o objeto de solicitação (req), no Express.js tradicional, isso geralmente é feito diretamente na função de middleware. No Nest.js, entretanto, você pode contar mais com a injeção de dependência (DI) e a modularidade para fazer essas alterações de forma mais organizada.
+
+Encerrando o ciclo de resposta, assim como no Express, o middleware no Nest.js pode encerrar o ciclo de solicitação-resposta. No entanto, o middleware Nest.js aproveita async/await e decoradores, oferecendo uma abordagem mais moderna e uma sintaxe mais limpa para lidar com tais operações.
+
+Chamando o próximo middleware na pilha, tanto no Nest.js quanto no Express, o middleware pode passar o controle para a próxima função de middleware na pilha usando a função `next()`. No entanto, o Nest.js traz segurança de tipo e DI para o cenário, tornando mais fácil a construção de aplicativos robustos e de fácil manutenção.
+
+Middleware do registrador, enviando a solicitação ao servidor por meio de um navegador. No aplicativo Nest.js, execute o middleware do criador de logs antes de executar o manipulador de solicitação. Esta arquitetura segue a abordagem modular do Nest.js, em que funções de registro semelhantes a middleware podem ser organizadas e reutilizadas em diferentes módulos de forma mais eficaz do que em uma estrutura como o Express, que não possui esse sistema modular integrado.
+
+Os sistemas Logger são essenciais para rastrear atividades, diagnosticar problemas e compreender o comportamento de um aplicativo. Ao contrário das configurações tradicionais em que o registro pode ser uma reflexão tardia, o Nest.js permite a integração de mecanismos de registro sofisticados devido à sua natureza modular e extensível. Isso contrasta com estruturas menos opinativas como o Express, onde o log é frequentemente implementado por meio de middleware externo sem qualquer estrutura padrão.
+
+- Criando um logger middleware
+
+Usaremos o Nest CLI para gerar o LoggerMiddleware. Crie a pasta common dentro do diretório src e também crie uma pasta middleware dentro do diretório common. Esta poderia ser a estrutura de diretório **src/common/middleware/**
+
+```bash
+nest g comum/middleware/logger --no-spec --no-flat
+```
+
+· **--no-spec** significa que não quero o arquivo de teste
+· **--no-flat** significa não criar o novo diretório com middleware logger. Você deve criar o arquivo **logger.middleware.ts**
+Você encontrará o **logger.middleware.ts** dentro da pasta middleware.
+
+```ts
+@Injetável()
+export class LoggerMiddleware implements NestMiddleware {
+  use(req: any, res: any, next: () => void) {
+    console.log('Solicitação ....', new Date().toDateString());
+    next();
+  }
+}
+```
+
+Crie uma classe LoggerMiddleware que implemente NestMiddleware. Certifique-se de escrever a implementação do método de uso. Personalize o objeto req conforme necessário; por exemplo, você poderia registrar a data atual.
+
+- Aplique middleware no AppModule.
+
+```ts
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    // consumer.apply(LoggerMiddleware).forRoutes('songs'); // option no 1
+    // consumer
+    // .apply(LoggerMiddleware)
+    // .forRoutes({ path:  'songs',  method:  RequestMethod.POST }); //option no 2
+    consumer.apply(LoggerMiddleware).forRoutes(SongsController); //option no 3
+  }
+}
+```
+
+Escolha uma das três opções fornecidas para aplicar o middleware. Na última opção, implemente o LoggerMiddleware para as rotas SongsController.
+Teste o middleware
+Inicie o aplicativo usando **npm run start:dev**.
+Ao enviar uma solicitação para qualquer rota da API de **songs**, certifique-se de que ela exiba a data atual. Envie uma solicitação GET para **localhost:3000/songs**.
+
+- Tratamento de exceções
+
+Se ocorrer um erro no código, lidar com ele torna-se crucial. NestJS oferece tratamento de exceção HTTP integrado que agiliza o processo de envio de respostas informativas e bem estruturadas ao cliente, um recurso que o diferencia de estruturas como Express, que requerem middleware adicional para funcionalidade semelhante.
+Lançar uma exceção no método **SongsService findAll** pode ser feito com facilidade. No NestJS, o uso de **throw new HttpException('Description', HttpStatus.STATUS_CODE)** permite mensagens personalizadas e códigos de status HTTP, fornecendo um mecanismo de tratamento de erros mais amigável e robusto ao desenvolvedor do que algumas outras estruturas de back-end como Flask, onde as exceções geralmente exigem mais configuração manual.
+
+```ts
+  findAll() {
+ throw  new  Error('Error in Db while fetching record');
+ return  this.songs;
+ }
+```
+
+Uma falsa mensagem de erro foi enviada para simular um problema ao buscar dados do banco de dados. Enviar uma solicitação para buscar todas as músicas de **http://localhost:3000/songs** resultará em uma mensagem de erro acompanhada por um código de status 500.
+
+- Tratamento de exceção com **Try/Catch**
+
+```ts
+ @Get()
+ findAll() {
+try {
+   return  this.songsService.findAll();
+  }
+   catch (err) {
+   throw  new  HttpException(
+   'server error',
+   HttpStatus.INTERNAL_SERVER_ERROR,{ cause:  err },
+); }
+```
+
+● O tratamento de exceções é possível usando o bloco **try/catch**, uma construção de programação padrão. No escopo do NestJS, isso é mais estruturado e seguro de tipo em comparação ao Express, onde o tratamento de erros geralmente depende de funções de middleware e não possui suporte nativo a TypeScript.
+
+● O registro de mensagens no bloco catch serve como uma prática recomendada para fins de depuração e auditoria. No NestJS, o registro em log pode ser mais simplificado graças à sua arquitetura modular e à classe Logger integrada, ao contrário do Express, onde uma biblioteca de terceiros, como Winston ou Morgan, geralmente é necessária para um registro robusto.
+
+● O envio de códigos de status HTTP específicos junto com mensagens de erro é facilitado no NestJS por meio de sua classe **HttpException** integrada. Isso fornece mais granularidade e controle sobre respostas de erro em comparação com o Express, que geralmente requer bibliotecas adicionais, como **http-errors**, para funcionalidade semelhante.
+
+● Optar por um erro interno do servidor 500 é uma opção que indica um problema no servidor. Como prática recomendada, os engenheiros principais podem optar por mapear exceções para códigos de status HTTP específicos com base na natureza do erro, um recurso que tem suporte nativo e é simplificado no NestJS em comparação ao Express.
+
+- Pipes
+
+● O recurso de Transform Param usando ParseInt é uma ferramenta poderosa do NestJS que facilita a conversão de tipos de forma eficiente. Enquanto estruturas como o Express carecem de transformação de parâmetros integrada, os pipes no NestJS oferecem uma abordagem mais automatizada e nativa para coerção de tipos, seguindo as melhores práticas para garantir a verificação robusta de tipos, algo altamente valorizado por engenheiros experientes.
+
+● Existem dois casos principais de uso para pipes: transformação de valores e validação de parâmetros de entrada. Enquanto o Express demanda middleware adicional ou bibliotecas como express-validator para alcançar funcionalidades semelhantes, os pipes do NestJS se integram perfeitamente ao ecossistema da estrutura, oferecendo uma solução mais elegante e sustentável para transformação de valores e validação de entrada, alinhada com as melhores práticas de arquitetura.
+
+```ts
+// MúsicasContoller.ts
+@Get(':id')
+findOne(
+     @Param(
+         'id',
+         new ParseIntPipe({
+             errorHttpStatusCode: HttpStatus.NOT_ACCEPTABLE
+        }),
+      ),
+id: number, ){
+     return `buscar música com base no id ${typeof id}`;
+}
+```
+
+● Os parâmetros dinâmicos podem ser capturados usando o decorador **@Param**, onde o nome do argumento precisa ser especificado. Em contraste com o Express, onde os parâmetros de solicitação são extraídos usando **req.params**, o NestJS fornece uma maneira mais declarativa e segura de tipo de fazer isso, aderindo às práticas recomendadas ao impor um sistema de tipos mais rígido.
+
+● O parâmetro id é do tipo string por padrão. Utilizar **ParseIntPipe** converterá automaticamente esse valor de string em um número. Ao contrário do Express, que exigiria conversão manual de tipo, o uso de pipes no NestJS permite a transformação automática de tipo, tornando o código mais robusto e fácil de manter, uma prática que qualquer engenheiro experiente apreciaria.
+
+● Enviar uma solicitação para **http://localhost:3000/songs/1** resultará no registro do tipo de ID como um número. Isso mostra a capacidade do NestJS de utilizar pipes para tarefas de transformação, uma área onde ele mantém uma vantagem sobre estruturas como o Express, que necessitam de middleware separado para tais operações.
+
+● O código de status de erro também pode ser fornecido ao **ParseIntPipe**. Caso um valor de string seja fornecido, um erro será gerado. Essa abordagem permite um melhor tratamento de erros no NestJS em comparação com os métodos mais manuais de verificação de erros exigidos no Express.
+
+● Enviar uma solicitação para **http://localhost:3000/songs/abc** produzirá uma mensagem de erro informando “não aceitável”. Em estruturas como Express, a lógica de validação para lidar com tais erros geralmente precisaria ser escrita explicitamente, enquanto o NestJS permite mecanismos de validação mais configuráveis e integrados. Esse recurso está alinhado às práticas recomendadas de manutenção e escalabilidade.
+
+Valide os parâmetros da solicitação com o validador de classe
+Para validar parâmetros de solicitação, o validador de classe é frequentemente usado no NestJS. A instalação de dois pacotes necessários inicia esse recurso, tornando a validação uma parte integrante do processo de tratamento de solicitações, ao contrário do Express, onde a lógica de validação pode ser codificada manualmente ou extraída por meio de middleware adicional.
+O uso do validador de classe no NestJS permite regras de validação declarativas em classes DTO (Data Transfer Object) usando vários decoradores, como **@IsString()** ou **@IsNotEmpty()**. Essa abordagem promove a reutilização e a capacidade de manutenção da lógica de validação, alinhando-se com as melhores práticas para uma arquitetura de aplicativo escalonável, enquanto no Express, muitas vezes são necessárias bibliotecas de validação separadas, como validator ou express-validator.
+
+- Escopo de Pipes global
+
+· A próxima etapa envolve vincular o **ValidationPipe** do pacote **@nestjs/common**. Esse recurso oferece uma vantagem sobre estruturas como o Express, onde a validação geralmente requer bibliotecas adicionais ou middleware personalizado. No NestJS, os pipes oferecem vários escopos para validação: escopo de parâmetro, escopo de método, escopo de controlador ou escopo global, proporcionando maior flexibilidade e modularidade ao aplicativo.
+
+· A opção por escopo global requer registro no arquivo main.ts. Esta é uma prática recomendada para garantir consistência na validação em todo o aplicativo, minimizando as chances de falta de lógica de validação em qualquer parte do aplicativo. Ao contrário do Express, que exigiria uma função de middleware global para funcionalidade semelhante, o NestJS simplifica a definição de regras de validação globais.
+src/main.ts
+
+```typescript
+import { ValidationPipe } from '@nestjs/common';
+// ...
+app.useGlobalPipes(new ValidationPipe());
+```
+
+- Criando um CreateSongDTO
+
+Um **DTO (Data Transfer Object)** serve como um modelo de como os dados serão enviados pela rede. Embora as interfaces TypeScript e as classes simples possam definir o esquema DTO, as classes são recomendadas neste contexto. Em contraste com o Express, onde o DTO e a validação geralmente exigem bibliotecas ou middleware adicionais, o NestJS oferece uma abordagem mais integrada por meio de suas técnicas de validação baseadas em decorador. Como melhor prática, armazenar DTOs em um diretório dedicado garante que o aplicativo siga o princípio de separação de interesses, facilitando a manutenção e o dimensionamento futuro.
+Para instanciar o DTO, uma nova classe deve ser criada dentro do arquivo **src/songs/dto/create-song.dto.ts**. Esta é uma abordagem mais estruturada do que em estruturas como o Express, onde o esquema e a validação podem ser misturados com manipuladores de rotas ou middleware. Ter um arquivo DTO dedicado conduz a um código mais modular e de fácil manutenção.
+
+```typescript
+import {
+  IsArray,
+  IsDateString,
+  IsMilitaryTime,
+  IsNotEmpty,
+  IsString,
+} from 'class-validator';
+
+export class CreateSongDto {
+  @IsString()
+  @IsNotEmpty()
+  title: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  artists: string[];
+
+  @IsDateString()
+  @IsNotEmpty()
+  releaseDate: Date;
+
+  @IsMilitaryTime()
+  @IsNotEmpty()
+  duration: Date;
+}
+```
+
+Quatro campos – title, artists, releaseDate, duration – estão presentes. O validador de classe permite a adição de validações baseadas em decorador. A função **isDateString()** é empregada para validar a data, enquanto **isMilitaryTime()** é usada para validação de hora no formato HH:MM.
+
+Aplicar CreateSongDTO como decorador corporal
+Você tem que atualizar o método create dentro de **src/songs/songs.controller.ts**
+
+```typescript
+import { Body, Controller, Post } from '@nestjs/common';
+import { CreateSongDto } from './dto/create-song.dto';
+
+@Controller('songs')
+export class SongsController {
+  constructor(private readonly songsService: SongsService) {}
+
+  @Post()
+  create(@Body() createSongDTO: CreateSongDto) {
+    const results = this.songsService.create(createSongDTO);
+    return results;
+  }
+}
+```
+
+- Testando a aplicação
+
+Para iniciar o aplicativo, execute o comando **npm run start:dev** e prossiga para enviar a solicitação ‘create song’. Ao contrário do Express, onde o nodemon ou um pacote semelhante seria instalado separadamente para recarregamento a quente, o NestJS inclui esse recurso por padrão com o script start:dev, proporcionando uma experiência de desenvolvimento mais pronta para uso. Como prática recomendada, separar a lógica de ‘create song’ em um método de serviço dedicado garante um código mais limpo e de fácil manutenção.
+
+POST http://localhost:3001/songs
+Content-Type: application/json
+
+```json
+{
+  "title": "Clovis",
+  "artists": ["Sua mae  "],
+  "releaseDate": "2022-07-29",
+  "duration": "02:34"
+}
+```
