@@ -14,7 +14,8 @@ export class CreateSongDTO {
   // @IsString()
   @IsNotEmpty()
   @IsArray()
-  readonly artists: string[];
+  @IsString({ each: true })
+  readonly artists;
 
   @IsNotEmpty()
   @IsDateString()
