@@ -573,3 +573,258 @@ Content-Type: application/json
   "duration": "02:34"
 }
 ```
+
+## Capítulo 3 Injeção de dependência
+
+- Custom Providers
+
+● A injeção de dependência baseada em construtor é uma prática essencial no Nest.js, permitindo a injeção de instâncias, especialmente provedores de serviços como SongsService, nas classes usando o construtor (por exemplo, `constructor(private readonly songsService: SongsService)`). Essa abordagem contrasta com estruturas como o Express, onde a injeção de dependência não é suportada nativamente e muitas vezes requer o uso de bibliotecas de terceiros para funcionalidades semelhantes. A injeção baseada em construtor é preferida como prática recomendada devido à sua clareza e facilidade de teste.
+
+● Quando o contêiner Nest IoC (Inversão de Controle) cria uma instância de SongsController, ele automaticamente verifica quaisquer dependências, como SongsService. Ao identificar a dependência, o Nest instancia o SongsService, armazena-o em cache e o retorna. Se uma instância já estiver armazenada em cache, ela é reutilizada. Esse comportamento difere do Express, que geralmente não possui um contêiner IoC integrado, exigindo instanciação manual ou soluções de terceiros. Aproveitar o cache para instâncias de serviço pode levar a otimizações de desempenho significativas.
+
+● A injeção de dependência baseada em construtor é uma prática essencial no Nest.js, permitindo a injeção de instâncias, especialmente provedores de serviços como SongsService, nas classes usando o construtor (por exemplo, `constructor(private readonly songsService: SongsService)`). Essa abordagem contrasta com estruturas como o Express, onde a injeção de dependência não é suportada nativamente e muitas vezes requer o uso de bibliotecas de terceiros para funcionalidades semelhantes. A injeção baseada em construtor é preferida como prática recomendada devido à sua clareza e facilidade de teste.
+
+● Quando o contêiner Nest IoC (Inversão de Controle) cria uma instância de SongsController, ele automaticamente verifica quaisquer dependências, como SongsService. Ao identificar a dependência, o Nest instancia o SongsService, armazena-o em cache e o retorna. Se uma instância já estiver armazenada em cache, ela é reutilizada. Esse comportamento difere do Express, que geralmente não possui um contêiner IoC integrado, exigindo instanciação manual ou soluções de terceiros. Aproveitar o cache para instâncias de serviço pode levar a otimizações de desempenho significativas.
+
+- Existem várias técnicas para utilizar provedores no NestJS:
+
+1. **Provedores padrão:** São classes que são instanciadas pelo sistema de injeção de dependência do NestJS. Ao contrário do Express, onde a injeção de dependência geralmente deve ser implementada manualmente ou por meio de bibliotecas de terceiros, o NestJS fornece esse recurso nativamente. Como prática recomendada, aproveite os provedores padrão para serviços que exigem instanciação.
+
+2. **Provedores de valor:** São valores codificados ou configurações injetadas em outras classes. Esse recurso pode substituir a necessidade de variáveis de ambiente ou arquivos de configuração, que em estruturas como o Express, normalmente seriam gerenciados por pacotes separados. O uso de provedores de valor para constantes e definições de configuração contribui para a manutenção do código.
+
+3. **Tokens de provedor não baseados em classe:** São tokens personalizados que podem ser usados para injetar valores ou serviços. Ao contrário de frameworks como Django, que depende mais de visualizações baseadas em funções e não possui equivalente direto, o NestJS permite maior flexibilidade na injeção de dependência. Use tokens personalizados criteriosamente para evitar gráficos de dependência excessivamente complexos.
+
+4. **Provedores de classes useClass:** Permitem a substituição de um provedor de classes por outro, proporcionando polimorfismo. Isso é diferente do Express, onde tal abstração pode exigir padrões de fábrica mais manuais. Empregar useClass é benéfico para alcançar a reutilização e flexibilidade do código.
+
+5. **FactoryProviders com useFactory:** Permitem a instanciação condicional de uma classe, algo não suportado nativamente em frameworks como Flask. Usar FactoryProviders quando o fornecimento de uma classe ou valor depende de condições em tempo de execução.
+
+6. **Provedores que não são de serviços:** São provedores que não estão necessariamente vinculados a um serviço e podem fornecer funções utilitárias, por exemplo. Essa granularidade geralmente não está disponível em configurações básicas do Express e normalmente exigiria módulos ou utilitários adicionais. A incorporação de provedores que não sejam de serviços pode ajudar a manter a base de código DRY (Don’t Repeat Yourself).
+
+Será realizada a exploração de todas as seis técnicas, cada uma elucidada através de um exemplo. Vamos brincar com todas essas 6 técnicas. Explicarei cada técnica com a ajuda de um exemplo.
+
+- Provedores padrão:
+
+Esta é a técnica padrão de provedor que você usou em nosso aplicativo. Você também pode converter a sintaxe acima para esta:
+
+```typescript
+@Módulo({
+    controller: [SongsController],
+    providers: [{
+        provide: SongsService,
+        useClass: SongsService,
+    }],
+})
+```
+
+Essa forma de declaração permite uma maior flexibilidade ao configurar provedores, especialmente quando há a necessidade de usar useClass para fornecer uma classe específica como provedor.
+
+- Provedor de valor:
+
+A sintaxe useValue é útil para injetar um valor constante, colocar uma biblioteca externa no contêiner Nest ou substituir uma implementação real por um objeto simulado. Digamos que você queira forçar o Nest a usar um SongsService simulado para fins de teste.
+
+Exemplo de uso:
+
+```typescript
+const mockSongsService = {
+  findAll() {
+    return [
+      {
+        id: 1,
+        title: 'Morango do nordeste',
+      },
+    ];
+  },
+};
+
+@Module({
+  controllers: [SongsController],
+  providers: [
+    SongsService,
+    {
+      provide: SongsService,
+      useValue: mockSongsService,
+    },
+  ],
+})
+export class SongsModule {}
+```
+
+Quando você envia uma solicitação GET para localhost:3000/songs, ele executará o método findAll() de mockSongsService em vez de SongsService original.
+
+Exemplo de uso com constantes:
+
+```typescript
+// src/common/constants/connection.ts
+export const connection: Connection = {
+  CONNECTION_STRING: 'CONNECTION_STRING',
+  DB: 'POSTGRES',
+  DBNAME: 'TEST',
+};
+
+export type Connection = {
+  CONNECTION_STRING: string;
+  DB: string;
+  DBNAME: string;
+};
+```
+
+Essas constantes podem ser usadas em todo o seu aplicativo e injetadas como valores por meio da sintaxe useValue quando necessário.
+
+- Provedores:
+
+Para injetar um objeto como dependência, useValue pode ser utilizado. Esse recurso distingue o NestJS de estruturas como o Express, onde a injeção manual baseada em construtor costuma ser a norma. No caso em questão, foi criado um novo arquivo chamado connection.ts, contendo um objeto de conexão com CONNECTION_STRING, BD e DBNAME. Como prática recomendada, manter as configurações de conexão em arquivos separados e importá-las conforme necessário garante uma configuração de aplicativo modular e facilmente configurável.
+
+Exemplo de uso:
+
+```typescript
+// src/common/constants/connection.ts
+export const connection: Connection = {
+  CONNECTION_STRING: 'CONNECTION_STRING',
+  DB: 'POSTGRES',
+  DBNAME: 'TEST',
+};
+
+export type Connection = {
+  CONNECTION_STRING: string;
+  DB: string;
+  DBNAME: string;
+};
+```
+
+O objeto de conexão agora pode ser injetado em qualquer controlador ou serviço dentro do SongsModule. Isso contrasta com estruturas como Express, onde a injeção de dependência não é nativa e muitas vezes requer bibliotecas de terceiros como ‘Awilix’ para funcionalidades semelhantes. Como prática recomendada, isolar conexões de banco de dados em arquivos de provedores dedicados garante um código mais modular e de fácil manutenção, facilitando assim testes unitários e separação de interesses.
+
+```typescript
+import { connection } from 'src/common/constants/connection';
+
+@Módulo({
+  controllers: [SongsController],
+  providers: [
+    SongsService,
+    // Provedores não baseados em classe
+    // Você pode usá-lo para adicionar valores constantes
+    {
+      provide: 'CONEXÃO',
+      useValue: connection,
+    },
+  ],
+})
+export class SongsModule {}
+```
+
+Sera injetado este objeto de conexão em SongsService usando o decorador @Inject com o nome do token CONNECTION. Isso permite que o serviço acesse as configurações de conexão de forma fácil e segura.
+
+```typescript
+@Injectable()
+export class SongsService {
+  constructor(
+    @Inject('CONNECTION')
+    connection: Connection,
+  ) {
+    console.log('connection string', connection.CONNECTION_STRING);
+  }
+}
+```
+
+- Class Providers: useClass
+
+Uma classe DevConfigService foi criada e registrada como provedor. Com esta configuração, o AppModule é capaz de injetar esse provedor como uma dependência em qualquer classe para utilização. Em contraste com o Express, que normalmente depende de bibliotecas de terceiros, como dotenv, para gerenciamento de configuração, o NestJS oferece uma maneira mais integrada de lidar com configurações por meio de provedores de serviços personalizados. Como prática recomendada, encapsular a lógica de configuração em uma classe de serviço dedicada permite testes e manutenção mais fáceis, aderindo ao princípio de Separação de Preocupações.
+
+```typescript
+// src/common/providers/DevConfigService.ts
+import { Injectable } from '@nestjs/common';
+
+@Injectable()
+export class DevConfigService {
+  DBHOST = 'localhost';
+
+  getDBHOST() {
+    return this.DBHOST;
+  }
+}
+
+@Injectable()
+export class AppService {
+  constructor(private devConfigService: DevConfigService) {}
+
+  getHello(): string {
+    return `Olá, estou aprendendo os fundamentos do Nest.js ${this.devConfigService.getDBHOST()}`;
+  }
+}
+```
+
+O DevConfigService foi injetado no AppService e o método getDBHOST do DevConfigService é invocado. Ao contrário do Express, onde a injeção de dependência não é suportada nativamente e pode exigir bibliotecas de terceiros, o NestJS simplifica isso com injeção de dependência integrada, levando a soluções mais modulares e código testável. Como prática recomendada, as configurações específicas do ambiente, como detalhes do host do banco de dados, devem ser abstraídas em serviços de configuração separados, garantindo que o código esteja de acordo com a metodologia do Aplicativo de Doze Fatores.
+
+- Non-Service Provider
+
+Um provedor no NestJS tem flexibilidade para fornecer qualquer valor, tornando-o um componente versátil para injeção de dependência. A sintaxe useFactory facilita a criação dinâmica de provedores, um recurso que o diferencia do Express, que geralmente depende de bibliotecas externas como awilix ou injeção manual de construtor para funcionalidades semelhantes. Como prática recomendada, isolar lógica de negócios complexa nos provedores de fábrica pode levar a um código mais modular e testável.
+
+```typescript
+const devConfig = {
+  port: 3000,
+};
+
+const proConfig = {
+  port: 400,
+};
+
+@Module({
+  providers: [
+    {
+      provide: 'CONFIG',
+      useFactory: () => {
+        return process.env.NODE_ENV === 'development' ? devConfig : proConfig;
+      },
+    },
+  ],
+})
+export class AppModule {}
+```
+
+Dois objetos, devConfig e proConfig, foram criados. A atribuição dinâmica de valores é possível por meio da função useFactory. Ao contrário do Express, onde as configurações específicas do ambiente geralmente exigem arquivos JSON ou JS separados, o NestJS permite uma configuração dinâmica em linha mais simplificada. Como prática recomendada, isolar a lógica de configuração em módulos ou serviços dedicados promove a capacidade de manutenção e a escalabilidade.
+
+```typescript
+@Injectable()
+export class AppService {
+  constructor(
+    @Inject('CONFIG')
+    private configuração: {
+      port: string;
+    },
+  ) {
+    console.log(config);
+  }
+}
+```
+
+O Provider CONFIG foi injetado dentro do AppService.
+
+- Injection Scopes
+
+Os escopos de Provider no NestJS podem ser categorizados em três tipos principais:
+
+1. **PADRÃO**
+
+   - Neste escopo, uma única instância do Provider é compartilhada por todo o aplicativo, um recurso semelhante aos serviços singleton do Express, mas explicitado no NestJS. Quando o aplicativo solicita esse Provider pela segunda vez, o NestJS o recupera de um cache interno, um mecanismo que melhora o desempenho do aplicativo. Como prática recomendada, é aconselhável usar provedores de cache para minimizar a sobrecarga computacional.
+
+2. **PEDIDO**
+
+   - Ao contrário do escopo PADRÃO, uma nova instância do Provider é criada para cada solicitação recebida. Embora isso forneça melhor isolamento, é um modelo diferente da arquitetura baseada em middleware do Express, onde o isolamento em nível de solicitação geralmente envolve o escopo da função. Este escopo é ideal para cenários onde cada solicitação pode precisar de um Provider com estado que não deve afetar outras solicitações.
+
+3. **TRANSITÓRIO**
+   - Os provedores transitórios são únicos porque não são compartilhados entre diferentes consumidores. Quando um Provider transitório é injetado, o consumidor recebe uma instância nova e dedicada, diferentemente do Express, onde esse nível de granularidade de injeção não é nativo e muitas vezes deve ser gerenciado manualmente. A contratação de fornecedores transitórios é uma boa prática quando o isolamento estatal entre os consumidores é crucial.
+
+```typescript
+@Injectable({
+  scope: Scope.TRANSIENT,
+})
+export class SongsService {}
+@Controller({
+  path: 'songs',
+  scope: Scope.REQUEST,
+})
+export class SongsController {}
+```
+
+Uma nova instância do SongsController é criada para cada solicitação recebida, oferecendo uma arquitetura mais sem estado. Em contraste, estruturas como o Express usam um padrão singleton para controladores, reutilizando assim a mesma instância para todas as solicitações, o que pode introduzir problemas relacionados ao estado. Adotar uma arquitetura sem estado é uma prática recomendada para melhorar a escalabilidade e a capacidade de manutenção.
+
+A depuração de dependências pode apresentar desafios, mas é essencial compreender o uso de diferentes escopos. Ao contrário do Express, que não possui um sistema DI (Injeção de Dependência) integrado, o NestJS possui vários escopos para injeção de dependência, tornando-o mais flexível para casos de uso complexos. Utilizar o escopo correto para dependências é considerado uma prática recomendada, pois melhora o desempenho e a arquitetura geral.
